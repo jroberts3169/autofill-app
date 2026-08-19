@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ashby Quick Apply — Profile</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 28px 20px 60px;
+        font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      h1 { font-size: 20px; margin: 0 0 4px; }
+      h2 { font-size: 15px; margin: 28px 0 10px; }
+      p.muted { color: #6b7280; margin-top: 0; }
+      .grid {
+        display: grid;
+        grid-template-columns: 180px 1fr;
+        gap: 10px 14px;
+        align-items: center;
+      }
+      label { font-weight: 600; }
+      input[type="text"], input[type="email"], input[type="tel"], input[type="url"], select {
+        width: 100%;
+        padding: 7px 9px;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        font-size: 14px;
+        box-sizing: border-box;
+        background: Field;
+        color: FieldText;
+      }
+      .actions { margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap; }
+      button {
+        padding: 9px 16px;
+        font-size: 14px;
+        font-weight: 600;
+        border: 0;
+        border-radius: 8px;
+        background: #2563eb;
+        color: #fff;
+        cursor: pointer;
+      }
+      button.secondary { background: #e5e7eb; color: #111827; }
+      button:hover { filter: brightness(0.96); }
+      #saved { color: #16a34a; font-weight: 600; margin-left: 6px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+      th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+      th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; }
+      td input { width: 100%; padding: 5px 7px; border: 1px solid #cbd5e1; border-radius: 5px; box-sizing: border-box; }
+      td.del button { background: transparent; color: #dc2626; padding: 4px 6px; }
+      .empty { color: #9ca3af; font-style: italic; }
+      textarea { width: 100%; min-height: 90px; box-sizing: border-box; }
+    </style>
+  </head>
+  <body>
+    <h1>Ashby Quick Apply</h1>
+    <p class="muted">Your details stay on this device (extension storage). Fill-only — nothing is ever submitted for you.</p>
+
+    <h2>Profile</h2>
+    <div class="grid">
+      <label for="firstName">First name</label><input id="firstName" type="text" />
+      <label for="lastName">Last name</label><input id="lastName" type="text" />
+      <label for="fullName">Full name</label><input id="fullName" type="text" placeholder="(auto from first + last if blank)" />
+      <label for="email">Email</label><input id="email" type="email" />
+      <label for="phone">Phone</label><input id="phone" type="tel" />
+      <label for="linkedin">LinkedIn URL</label><input id="linkedin" type="url" />
+      <label for="github">GitHub URL</label><input id="github" type="url" />
+      <label for="portfolio">Portfolio / website</label><input id="portfolio" type="url" />
+      <label for="location">Location / city</label><input id="location" type="text" />
+      <label for="workAuthorized">Authorized to work?</label>
+      <select id="workAuthorized"><option>Yes</option><option>No</option></select>
+      <label for="requireSponsorship">Require sponsorship?</label>
+      <select id="requireSponsorship"><option>No</option><option>Yes</option></select>
+      <label for="hearAbout">How did you hear about us?</label><input id="hearAbout" type="text" />
+    </div>
+
+    <div class="actions">
+      <button id="save">Save profile</button>
+      <span id="saved"></span>
+    </div>
+
+    <h2>Learned fields</h2>
+    <p class="muted">Values captured from other application questions you filled in. These auto-fill next time the same question appears.</p>
+    <table id="learnedTable">
+      <thead>
+        <tr><th>Question</th><th>Value</th><th></th></tr>
+      </thead>
+      <tbody id="learnedBody"></tbody>
+    </table>
+    <div class="actions">
+      <button id="saveLearned" class="secondary">Save learned changes</button>
+      <button id="clearLearned" class="secondary">Clear all learned</button>
+      <span id="learnedSaved"></span>
+    </div>
+
+    <h2>Backup</h2>
+    <div class="actions">
+      <button id="export" class="secondary">Export JSON</button>
+      <button id="import" class="secondary">Import JSON</button>
+    </div>
+    <textarea id="ioBox" placeholder="Exported data appears here. Paste JSON here and click Import to restore."></textarea>
+
+    <script src="common.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>

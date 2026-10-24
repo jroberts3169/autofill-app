@@ -1,0 +1,337 @@
+<!doctype html>
+<!--
+  greenhouse.html — offline stand-in for a Greenhouse job application form.
+
+  This is NOT a scrape. It is a hand-built reproduction of the DOM contracts
+  and widget behaviour the fill engine depends on, captured from a real
+  job-boards.greenhouse.io posting. Each quirk below exists because a real bug
+  depended on it:
+
+    - Built-in fields use stable ids (first_name, last_name, email, phone).
+    - Custom questions are `question_<id>` carrying an aria-label.
+    - Dropdowns are react-select-shaped: the control opens on MOUSEDOWN (not
+      click, not keydown), options live in a portaled listbox with ids of the
+      form `react-select-<inputId>-option-N`, and selecting commits on
+      mousedown and unmounts the option.
+    - Every required dropdown renders an aria-hidden, tabindex=-1, opacity:0
+      "required shim" input that still has a real bounding box.
+    - Single selects render `.select__single-value`; multi-selects render
+      `.select__multi-value__label` chips with a `.select__multi-value__remove`
+      button, plus a "Clear selections" icon button that has NO
+      `clear-indicator` class (Greenhouse replaces react-select's indicators).
+    - Inputs are "controlled": a value written without firing an `input` event
+      is reverted, mimicking React's value tracker.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Job Application for Software Engineer at Fixture Co</title>
+    <style>
+      body { font: 14px/1.5 system-ui, sans-serif; margin: 24px; max-width: 640px; }
+      .field { margin-bottom: 18px; }
+      label.q { display: block; font-weight: 600; margin-bottom: 4px; }
+      input.input__single-line, textarea { width: 100%; padding: 6px 8px; box-sizing: border-box; }
+      .select__control {
+        position: relative; display: flex; align-items: center; gap: 6px;
+        min-height: 34px; border: 1px solid #999; border-radius: 4px; padding: 2px 6px;
+      }
+      .select__input-container { flex: 1; display: flex; align-items: center; gap: 4px; }
+      .select__input { border: 0; outline: 0; flex: 1; min-width: 40px; font: inherit; }
+      .select__single-value { color: #111; }
+      .select__multi-value { display: inline-flex; align-items: center; gap: 4px;
+        background: #eee; border-radius: 3px; padding: 1px 4px; margin-right: 4px; }
+      .select__menu { border: 1px solid #ccc; margin-top: 2px; }
+      .select__option { padding: 6px 8px; cursor: pointer; }
+      .select__option:hover { background: #eef; }
+      /* The required-validation shim: invisible, but with a real box. */
+      .requiredInput {
+        opacity: 0; position: absolute; left: 0; bottom: 0;
+        width: 100%; height: 20px; border: 0; padding: 0;
+      }
+      .indicators { display: flex; gap: 2px; }
+      .icon-button { border: 0; background: transparent; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <h1>Software Engineer</h1>
+    <h2>Apply for this job</h2>
+
+    <div class="field">
+      <label class="q" for="first_name">First Name</label>
+      <input id="first_name" class="input input__single-line" type="text" aria-label="First Name" autocomplete="given-name" />
+    </div>
+    <div class="field">
+      <label class="q" for="last_name">Last Name</label>
+      <input id="last_name" class="input input__single-line" type="text" aria-label="Last Name" autocomplete="family-name" />
+    </div>
+    <div class="field">
+      <label class="q" for="email">Email</label>
+      <input id="email" class="input input__single-line" type="text" aria-label="Email" autocomplete="email" />
+    </div>
+    <div class="field">
+      <label class="q" for="phone">Phone</label>
+      <input id="phone" class="input input__single-line" type="tel" aria-label="Phone" autocomplete="off" />
+    </div>
+
+    <!-- Resume upload: must never be touched. -->
+    <div class="field">
+      <label class="q" for="resume">Resume/CV</label>
+      <input id="resume" type="file" />
+    </div>
+
+    <div class="field">
+      <label class="q" for="question_1001">LinkedIn Profile</label>
+      <input id="question_1001" class="input input__single-line" type="text" aria-label="LinkedIn Profile" />
+    </div>
+    <div class="field">
+      <label class="q" for="question_1002">Current Company</label>
+      <input id="question_1002" class="input input__single-line" type="text" aria-label="Current Company" />
+    </div>
+    <div class="field">
+      <label class="q" for="question_1003">GitHub</label>
+      <input id="question_1003" class="input input__single-line" type="text" aria-label="GitHub" />
+    </div>
+    <div class="field">
+      <label class="q" for="question_1004">Portfolio</label>
+      <input id="question_1004" class="input input__single-line" type="text" aria-label="Portfolio" />
+    </div>
+
+    <div class="field" data-select="question_2001" data-required="true"
+         data-options="Yes|No"
+         data-label="Do you require immigration sponsorship to work for Fixture Co in the United States?"></div>
+
+    <div class="field" data-select="question_2002" data-required="true"
+         data-options="Yes|No"
+         data-label="Will you require immigration sponsorship at any point in the future to maintain authorization to work in the United States?"></div>
+
+    <div class="field" data-select="question_2003" data-required="true"
+         data-options="LinkedIn|Job Board|Referral|Company Website|Other"
+         data-label="How did you first learn about Fixture Co as an employer?"></div>
+
+    <!-- Long-sentence options: a stored "No" must NOT substring-match
+         "I have not previously been employed...". -->
+    <div class="field" data-select="question_2004"
+         data-options="I have not previously been employed at Fixture Co|I have been employed at Fixture Co as a full-time employee|I have been employed at Fixture Co as an intern"
+         data-label="Have you previously been employed at Fixture Co for any length of time?"></div>
+
+    <h3>Demographic Survey</h3>
+
+    <div class="field" data-select="4028768003"
+         data-options="Male|Female|Non-binary|I prefer not to say"
+         data-label="How do you identify? (gender identity)"></div>
+
+    <!-- Multi-select: the one that used to accumulate duplicate chips. -->
+    <div class="field" data-select="4028769003" data-multi="true"
+         data-options="Black/African American|East Asian|Latinx|Middle Eastern|South Asian|White|I prefer not to say"
+         data-label="How do you identify? (race/ethnicity)"></div>
+
+    <div class="field" data-select="veteran_status"
+         data-options="I identify as one or more of the classifications of protected veteran|I am not a protected veteran|I decline to self-identify for protected veteran status"
+         data-label="Veteran Status"></div>
+
+    <script>
+      // ---------------------------------------------------------------------
+      // Minimal react-select clone. Only the behaviours the extension relies
+      // on are implemented, and they are implemented the way react-select
+      // actually behaves — notably: the menu opens on mousedown, and an option
+      // commits on mousedown and is then unmounted.
+      // ---------------------------------------------------------------------
+      function buildSelect(host) {
+        const id = host.dataset.select;
+        const multi = host.dataset.multi === "true";
+        const required = host.dataset.required === "true";
+        const options = host.dataset.options.split("|");
+        const label = host.dataset.label;
+
+        const labelEl = document.createElement("label");
+        labelEl.className = "q";
+        labelEl.id = id + "-label";
+        labelEl.textContent = label + (required ? " *" : "");
+        host.appendChild(labelEl);
+
+        const shell = document.createElement("div");
+        shell.className = "select-shell";
+        shell.style.position = "relative";
+
+        const control = document.createElement("div");
+        control.className = "select__control";
+
+        const valueZone = document.createElement("div");
+        valueZone.className = "select__input-container";
+
+        const input = document.createElement("input");
+        input.className = "select__input";
+        input.type = "text";
+        input.id = id;
+        input.setAttribute("role", "combobox");
+        input.setAttribute("aria-expanded", "false");
+        input.setAttribute("aria-autocomplete", "list");
+        input.setAttribute("aria-labelledby", id + "-label");
+        input.autocomplete = "off";
+
+        valueZone.appendChild(input);
+        control.appendChild(valueZone);
+
+        const indicators = document.createElement("div");
+        indicators.className = "select__indicators indicators";
+        control.appendChild(indicators);
+        shell.appendChild(control);
+
+        // The required shim: aria-hidden + tabindex=-1 + opacity 0, but with a
+        // real bounding box. The engine must never write into this.
+        if (required) {
+          const shim = document.createElement("input");
+          shim.className = "requiredInput";
+          shim.required = true;
+          shim.tabIndex = -1;
+          shim.setAttribute("aria-hidden", "true");
+          shell.appendChild(shim);
+        }
+
+        const menu = document.createElement("div");
+        menu.className = "select__menu";
+        menu.setAttribute("role", "listbox");
+        menu.hidden = true;
+        shell.appendChild(menu);
+
+        host.appendChild(shell);
+
+        /** Selected option text(s). */
+        let value = [];
+
+        function renderValue() {
+          valueZone.querySelectorAll(".select__single-value, .select__multi-value").forEach((n) => n.remove());
+          indicators.innerHTML = "";
+
+          if (multi) {
+            value.forEach((v) => {
+              const chip = document.createElement("div");
+              chip.className = "select__multi-value";
+              const lab = document.createElement("span");
+              lab.className = "select__multi-value__label";
+              lab.textContent = v;
+              const rm = document.createElement("div");
+              rm.className = "select__multi-value__remove";
+              const rmBtn = document.createElement("button");
+              rmBtn.type = "button";
+              rmBtn.className = "icon-button";
+              rmBtn.setAttribute("aria-label", "Remove " + v);
+              rmBtn.textContent = "x";
+              rm.appendChild(rmBtn);
+              rm.addEventListener("mousedown", (e) => {
+                e.preventDefault();
+                value = value.filter((x) => x !== v);
+                renderValue();
+              });
+              chip.append(lab, rm);
+              valueZone.insertBefore(chip, input);
+            });
+          } else if (value.length) {
+            const sv = document.createElement("div");
+            sv.className = "select__single-value";
+            sv.textContent = value[0];
+            valueZone.insertBefore(sv, input);
+          }
+
+          if (value.length) {
+            // Greenhouse's own clear button — note there is deliberately NO
+            // "clear-indicator" class here; it is identified by accessible name.
+            const clear = document.createElement("button");
+            clear.type = "button";
+            clear.className = "icon-button";
+            clear.setAttribute("aria-label", "Clear selections");
+            clear.textContent = "X";
+            clear.addEventListener("mousedown", (e) => {
+              e.preventDefault();
+              value = [];
+              renderValue();
+              closeMenu();
+            });
+            indicators.appendChild(clear);
+          }
+
+          const toggle = document.createElement("button");
+          toggle.type = "button";
+          toggle.className = "icon-button";
+          toggle.setAttribute("aria-label", "Toggle flyout");
+          toggle.textContent = "v";
+          indicators.appendChild(toggle);
+        }
+
+        function openMenu() {
+          const typed = input.value.trim().toLowerCase();
+          const shown = options.filter(
+            (o) => !typed || o.toLowerCase().includes(typed)
+          );
+          menu.innerHTML = "";
+          shown.forEach((text, i) => {
+            const opt = document.createElement("div");
+            opt.className = "select__option";
+            opt.setAttribute("role", "option");
+            opt.id = "react-select-" + id + "-option-" + i;
+            opt.setAttribute("aria-selected", "false");
+            opt.textContent = text;
+            // react-select commits on mousedown, then unmounts the option.
+            opt.addEventListener("mousedown", (e) => {
+              e.preventDefault();
+              if (multi) {
+                if (!value.includes(text)) value.push(text);
+              } else {
+                value = [text];
+              }
+              input.value = "";
+              renderValue();
+              closeMenu();
+            });
+            menu.appendChild(opt);
+          });
+          menu.hidden = false;
+          input.setAttribute("aria-expanded", "true");
+        }
+
+        function closeMenu() {
+          menu.hidden = true;
+          menu.innerHTML = "";
+          input.setAttribute("aria-expanded", "false");
+        }
+
+        control.addEventListener("mousedown", (e) => {
+          // Ignore mousedowns that belong to the indicator buttons.
+          if (e.target.closest(".icon-button") || e.target.closest(".select__multi-value__remove")) return;
+          if (menu.hidden) openMenu();
+          else closeMenu();
+        });
+
+        // Typing filters the list, as react-select does.
+        input.addEventListener("input", () => {
+          if (!menu.hidden) openMenu();
+        });
+
+        // react-select discards typed text on blur.
+        input.addEventListener("blur", () => {
+          input.value = "";
+          closeMenu();
+        });
+
+        renderValue();
+      }
+
+      document.querySelectorAll("[data-select]").forEach(buildSelect);
+
+      // ---------------------------------------------------------------------
+      // Controlled-input emulation. React keeps its own copy of each input's
+      // value and reverts anything written without a real `input` event. This
+      // is what makes "the form doesn't think there's any text there" testable
+      // offline: __reactValue is the source of truth.
+      // ---------------------------------------------------------------------
+      document.querySelectorAll("input.input__single-line, textarea").forEach((el) => {
+        el.__reactValue = "";
+        el.addEventListener("input", () => { el.__reactValue = el.value; });
+        // If anything sets .value without dispatching input, snap it back.
+        setInterval(() => {
+          if (el.value !== el.__reactValue) el.value = el.__reactValue;
+        }, 50);
+      });
+    </script>
+  </body>
+</html>

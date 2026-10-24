@@ -1,0 +1,310 @@
+<!doctype html>
+<!--
+  ashby.html — offline stand-in for an Ashby job application form.
+
+  Hand-built from a real jobs.ashbyhq.com posting. Every structural quirk below
+  is load-bearing for a bug the fill engine had to solve:
+
+    - Radio groups: the inputs are REAL <input type=radio> but rendered at
+      opacity:0 with styled markup on top. They have a non-zero bounding box
+      and tabindex 0, so they must not be mistaken for hidden fields.
+    - Inside a radio fieldset, the QUESTION is the fieldset's own <label> and
+      each OPTION has its own label[for]. The fieldset's <legend> is absent.
+      Every radio's `value` is the useless string "on".
+    - Yes/No questions are NOT radios: they are pairs of
+      <button aria-pressed> with no `type` attribute (so they default to
+      type=submit) sitting outside any <form>.
+    - The location field is a typeahead whose suggestions never contain the
+      typed text verbatim ("Austin, TX" -> "Austin, Texas, United States"),
+      and whose real value is only committed by picking a suggestion.
+    - Text inputs are controlled: a value written without an `input` event is
+      reverted.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sr. Software Engineer @ Fixture Co</title>
+    <style>
+      body { font: 14px/1.5 system-ui, sans-serif; margin: 24px; max-width: 640px; }
+      ._fieldEntry_ { margin-bottom: 20px; }
+      label._heading_ { display: block; font-weight: 600; margin-bottom: 6px; }
+      input[type="text"], input[type="email"], input[type="tel"], input[type="url"], textarea {
+        width: 100%; padding: 6px 8px; box-sizing: border-box;
+      }
+      fieldset._fieldEntry_ { border: 0; padding: 0; margin: 0 0 20px; }
+      ._option_ { display: flex; align-items: center; gap: 8px; position: relative; }
+      /* The real radio is invisible but occupies a real box. */
+      ._option_ input[type="radio"] {
+        opacity: 0; width: 24px; height: 24px; margin: 0; position: absolute; left: 0;
+      }
+      ._option_ label { padding-left: 30px; cursor: pointer; }
+      ._yesno_ { display: flex; gap: 8px; }
+      ._yesno_ button {
+        padding: 10px 28px; font: inherit; border: 1px solid #888;
+        border-radius: 6px; background: #fff; cursor: pointer;
+      }
+      ._yesno_ button[aria-pressed="true"] { background: #2563eb; color: #fff; }
+      ._inputContainer_ { position: relative; }
+      ._floatingContainer_ { border: 1px solid #ccc; position: absolute; background: #fff; width: 100%; z-index: 2; }
+      ._result_ { padding: 6px 8px; cursor: pointer; }
+      ._result_:hover { background: #eef; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="ashby-application-form-container">
+        <div class="_section_ ashby-application-form-section-container">
+
+          <div class="_fieldEntry_ ashby-application-form-field-entry">
+            <label class="_heading_ _label_" for="_systemfield_name">Legal Name</label>
+            <input id="_systemfield_name" type="text" />
+          </div>
+
+          <div class="_fieldEntry_ ashby-application-form-field-entry">
+            <label class="_heading_ _label_" for="_systemfield_email">Email</label>
+            <input id="_systemfield_email" type="email" />
+          </div>
+
+          <div class="_fieldEntry_ ashby-application-form-field-entry">
+            <label class="_heading_ _label_" for="_systemfield_phone">Phone</label>
+            <input id="_systemfield_phone" type="tel" />
+          </div>
+
+          <div class="_fieldEntry_ ashby-application-form-field-entry">
+            <label class="_heading_ _label_" for="field_linkedin">LinkedIn Profile Link</label>
+            <input id="field_linkedin" type="url" />
+          </div>
+
+          <div class="_fieldEntry_ ashby-application-form-field-entry">
+            <label class="_heading_ _label_" for="field_website">Website Link (github, portfolio, other)</label>
+            <input id="field_website" type="url" />
+          </div>
+
+          <!-- Location typeahead. The combobox input has NO id, so option
+               matching must fall back to the generic [role=option] selector. -->
+          <div class="_fieldEntry_ ashby-application-form-field-entry">
+            <label class="_heading_ _label_">City, State, Country</label>
+            <div class="_inputContainer_" id="locationContainer">
+              <input
+                type="text"
+                role="combobox"
+                aria-expanded="false"
+                aria-autocomplete="list"
+                aria-controls="locationListbox"
+                class="_locationInput_"
+              />
+              <div class="_floatingContainer_" id="locationListbox" role="listbox" hidden></div>
+            </div>
+          </div>
+
+          <div class="_fieldEntry_ ashby-application-form-field-entry">
+            <label class="_heading_ _label_" for="field_zip">ZIP Code</label>
+            <input id="field_zip" type="text" />
+          </div>
+
+          <div class="_fieldEntry_ ashby-application-form-field-entry">
+            <label class="_heading_ _label_" for="field_source">How did you hear about this job?</label>
+            <input id="field_source" type="text" />
+          </div>
+
+          <!-- Radio groups. Question = the fieldset's own <label>. -->
+          <fieldset class="_container_ _fieldEntry_ ashby-application-form-input-"
+                    data-radio="pronouns"
+                    data-label="Pronouns"
+                    data-options="She/her|He/him|They/them|Prefer to self-describe|Prefer not to share"></fieldset>
+
+          <fieldset class="_container_ _fieldEntry_ ashby-application-form-input-"
+                    data-radio="employment"
+                    data-label="Employment Status"
+                    data-options="Employed Full-Time|Employed Part-Time|Self-employed|Unemployed|Student|Not currently employed"></fieldset>
+
+          <!-- Options are ordered adversarially on purpose: "Female" contains
+               the substring "male" and comes FIRST, so a matcher that prefers
+               substring over exact would select the wrong answer. -->
+          <fieldset class="_container_ _fieldEntry_ ashby-application-form-input-"
+                    data-radio="gender"
+                    data-label="Gender"
+                    data-options="Female|Male|Decline to self-identify"></fieldset>
+
+          <fieldset class="_container_ _fieldEntry_ ashby-application-form-input-"
+                    data-radio="race"
+                    data-label="Race"
+                    data-options="Hispanic or Latino|White (Not Hispanic or Latino)|Black or African American (Not Hispanic or Latino)|Asian (Not Hispanic or Latino)|Two or More Races (Not Hispanic or Latino)|Decline to self-identify"></fieldset>
+
+          <fieldset class="_container_ _fieldEntry_ ashby-application-form-input-"
+                    data-radio="veteran"
+                    data-label="Veteran Status"
+                    data-options="I identify as one or more of the classifications of protected veteran listed above|I am not a protected veteran|I decline to self-identify for protected veteran status"></fieldset>
+
+          <!-- Yes/No button groups. -->
+          <div class="_fieldEntry_ ashby-application-form-field-entry"
+               data-yesno="authorized"
+               data-label="Are you legally authorized to work in the U.S.?"></div>
+
+          <div class="_fieldEntry_ ashby-application-form-field-entry"
+               data-yesno="sponsorship"
+               data-label="Will you now or ever in the future require sponsorship for employment at Fixture Co?"></div>
+
+          <div class="_fieldEntry_ ashby-application-form-field-entry"
+               data-yesno="over18"
+               data-label="Are you over 18 years of age?"></div>
+
+          <div class="_fieldEntry_ ashby-application-form-field-entry"
+               data-yesno="worked-before"
+               data-label="Have you ever worked for Fixture Co or one of our companies before?"></div>
+
+          <div class="_fieldEntry_ ashby-application-form-field-entry"
+               data-yesno="applied-before"
+               data-label="Have you applied for employment with Fixture Co before?"></div>
+
+          <div class="_fieldEntry_ ashby-application-form-field-entry"
+               data-yesno="acknowledge"
+               data-label="I acknowledge and agree to these application conditions."></div>
+
+        </div>
+      </div>
+    </main>
+
+    <script>
+      // ---------------------------------------------------------------------
+      // Radio groups: real inputs at opacity 0, question on the fieldset's own
+      // <label>, each option labelled via label[for]. value is always "on".
+      // ---------------------------------------------------------------------
+      document.querySelectorAll("[data-radio]").forEach((fs) => {
+        const name = "field_" + fs.dataset.radio;
+        const label = document.createElement("label");
+        label.className = "_heading_ _label_ ashby-application-form-question-title";
+        label.textContent = fs.dataset.label;
+        fs.appendChild(label);
+
+        fs.dataset.options.split("|").forEach((text, i) => {
+          const wrap = document.createElement("div");
+          wrap.className = "_option_ ashby-application-form-input-radio";
+
+          const input = document.createElement("input");
+          input.type = "radio";
+          input.name = name;
+          input.value = "on"; // exactly what Ashby emits
+          input.id = name + "-labeled-radio-" + i;
+
+          const optLabel = document.createElement("label");
+          optLabel.setAttribute("for", input.id);
+          optLabel.textContent = text;
+
+          wrap.append(input, optLabel);
+          fs.appendChild(wrap);
+        });
+      });
+
+      // ---------------------------------------------------------------------
+      // Yes/No groups: <button aria-pressed> with NO type attribute, so they
+      // default to type=submit. They sit outside any <form>.
+      // ---------------------------------------------------------------------
+      document.querySelectorAll("[data-yesno]").forEach((host) => {
+        const label = document.createElement("label");
+        label.className = "_heading_ _label_";
+        label.textContent = host.dataset.label;
+        host.appendChild(label);
+
+        const group = document.createElement("div");
+        group.className = "_container_ _yesno_ ashby-application-form-input-yesno";
+
+        ["Yes", "No"].forEach((text) => {
+          const btn = document.createElement("button");
+          // Deliberately no `type` attribute.
+          btn.className = "_container_ _option_ ashby-application-form-input-yesno-option";
+          btn.setAttribute("aria-pressed", "false");
+          btn.textContent = text;
+          btn.addEventListener("click", () => {
+            group.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", "false"));
+            btn.setAttribute("aria-pressed", "true");
+          });
+          group.appendChild(btn);
+        });
+
+        host.appendChild(group);
+      });
+
+      // ---------------------------------------------------------------------
+      // Location typeahead. Suggestions are only produced once something is
+      // typed, and never contain the typed text verbatim. The committed value
+      // is the canonical suggestion.
+      // ---------------------------------------------------------------------
+      (function buildLocation() {
+        const CITIES = [
+          "Austin, Texas, United States",
+          "Justin, Texas, United States",
+          "Boston, Massachusetts, United States",
+          "Denver, Colorado, United States",
+          "San Francisco, California, United States"
+        ];
+        const container = document.getElementById("locationContainer");
+        const input = container.querySelector("[role=combobox]");
+        const listbox = document.getElementById("locationListbox");
+        let committed = "";
+
+        function close() {
+          listbox.hidden = true;
+          listbox.innerHTML = "";
+          input.setAttribute("aria-expanded", "false");
+        }
+
+        function render() {
+          const typed = input.value.trim().toLowerCase();
+          // Match on the first comma-segment, like a real geo lookup.
+          const head = typed.split(",")[0].trim();
+          const hits = head.length >= 2 ? CITIES.filter((c) => c.toLowerCase().startsWith(head)) : [];
+          listbox.innerHTML = "";
+          if (!hits.length) { close(); return; }
+          const results = document.createElement("div");
+          results.className = "_resultContainer_ ashby-application-form-input-autocomplete-popup";
+          hits.forEach((city, i) => {
+            const opt = document.createElement("div");
+            opt.setAttribute("role", "option");
+            opt.id = "loc-option-" + i;
+            opt.setAttribute("aria-selected", i === 0 ? "true" : "false");
+            opt.className = "_result_ ashby-application-form-input-autocomplete-popup-result";
+            opt.textContent = city;
+            opt.addEventListener("mousedown", (e) => {
+              e.preventDefault();
+              committed = city;
+              input.value = city;
+              input.__reactValue = city;
+              close();
+            });
+            results.appendChild(opt);
+          });
+          listbox.appendChild(results);
+          listbox.hidden = false;
+          input.setAttribute("aria-expanded", "true");
+        }
+
+        input.addEventListener("input", () => {
+          input.__reactValue = input.value;
+          render();
+        });
+        input.addEventListener("mousedown", () => { if (listbox.hidden) render(); });
+        input.addEventListener("blur", () => {
+          // Loose text is discarded: only a committed suggestion survives.
+          input.value = committed;
+          input.__reactValue = committed;
+          close();
+        });
+        input.__reactValue = "";
+      })();
+
+      // ---------------------------------------------------------------------
+      // Controlled-input emulation: anything written without a real `input`
+      // event is reverted, exactly like React's value tracker.
+      // ---------------------------------------------------------------------
+      document.querySelectorAll("input[type=text], input[type=email], input[type=tel], input[type=url], textarea").forEach((el) => {
+        if (el.getAttribute("role") === "combobox") return; // handled above
+        el.__reactValue = "";
+        el.addEventListener("input", () => { el.__reactValue = el.value; });
+        setInterval(() => {
+          if (el.value !== el.__reactValue) el.value = el.__reactValue;
+        }, 50);
+      });
+    </script>
+  </body>
+</html>

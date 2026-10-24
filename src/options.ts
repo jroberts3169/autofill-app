@@ -1,29 +1,47 @@
-/* options.js — profile editor + learned-field manager + import/export. */
+/* options.ts — profile editor + learned-field manager + import/export. */
 (() => {
-  const $ = (id) => document.getElementById(id);
-  const PROFILE_FIELDS = [
-    "firstName", "lastName", "fullName", "email", "phone",
-    "linkedin", "github", "portfolio", "location",
-    "addressLine1", "addressLine2", "city", "state", "postalCode", "country",
-    "workAuthorized", "requireSponsorship", "hearAbout"
+  const $ = <T extends HTMLElement = HTMLElement>(id: string): T =>
+    document.getElementById(id) as T;
+
+  const PROFILE_FIELDS: AAFProfileKey[] = [
+    "firstName",
+    "lastName",
+    "fullName",
+    "email",
+    "phone",
+    "linkedin",
+    "github",
+    "portfolio",
+    "location",
+    "addressLine1",
+    "addressLine2",
+    "city",
+    "state",
+    "postalCode",
+    "country",
+    "workAuthorized",
+    "requireSponsorship",
+    "hearAbout"
   ];
 
-  function flash(el, text) {
+  function flash(el: HTMLElement, text: string): void {
     el.textContent = text;
     setTimeout(() => (el.textContent = ""), 1800);
   }
 
-  async function loadProfile() {
+  async function loadProfile(): Promise<void> {
     const { profile } = await AAF.getAll();
     for (const key of PROFILE_FIELDS) {
-      if ($(key)) $(key).value = profile[key] || "";
+      const input = $<HTMLInputElement>(key);
+      if (input) input.value = profile[key] || "";
     }
   }
 
   $("save").addEventListener("click", async () => {
     const { profile } = await AAF.getAll();
     for (const key of PROFILE_FIELDS) {
-      if ($(key)) profile[key] = $(key).value.trim();
+      const input = $<HTMLInputElement>(key);
+      if (input) profile[key] = input.value.trim();
     }
     await AAF.setProfile(profile);
     flash($("saved"), "Saved ✓");
@@ -31,7 +49,7 @@
 
   // ---------- Learned fields ----------
 
-  async function renderLearned() {
+  async function renderLearned(): Promise<void> {
     const { learned } = await AAF.getAll();
     const body = $("learnedBody");
     body.innerHTML = "";
@@ -75,10 +93,10 @@
 
   $("saveLearned").addEventListener("click", async () => {
     const { learned } = await AAF.getAll();
-    const inputs = $("learnedBody").querySelectorAll("input[data-key]");
+    const inputs = $("learnedBody").querySelectorAll<HTMLInputElement>("input[data-key]");
     inputs.forEach((inp) => {
       const key = inp.dataset.key;
-      if (learned[key]) learned[key].value = inp.value;
+      if (key && learned[key]) learned[key].value = inp.value;
     });
     await AAF.setLearned(learned);
     flash($("learnedSaved"), "Saved ✓");
@@ -95,12 +113,12 @@
 
   $("export").addEventListener("click", async () => {
     const { profile, learned, settings } = await AAF.getAll();
-    $("ioBox").value = JSON.stringify({ profile, learned, settings }, null, 2);
+    $<HTMLTextAreaElement>("ioBox").value = JSON.stringify({ profile, learned, settings }, null, 2);
   });
 
   $("import").addEventListener("click", async () => {
     try {
-      const data = JSON.parse($("ioBox").value);
+      const data = JSON.parse($<HTMLTextAreaElement>("ioBox").value) as Partial<AAFState>;
       if (data.profile) await AAF.setProfile({ ...AAF.DEFAULTS.profile, ...data.profile });
       if (data.learned) await AAF.setLearned(data.learned);
       if (data.settings) await AAF.setSettings({ ...AAF.DEFAULTS.settings, ...data.settings });
@@ -108,7 +126,7 @@
       await renderLearned();
       alert("Imported ✓");
     } catch (e) {
-      alert("Invalid JSON: " + e.message);
+      alert("Invalid JSON: " + (e instanceof Error ? e.message : String(e)));
     }
   });
 

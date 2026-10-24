@@ -1,0 +1,249 @@
+/*
+ * common.ts — shared storage, defaults, and label-matching logic.
+ * Loaded in the content script, popup, and options page.
+ * Exposes a single global `AAF`.
+ *
+ * Assigned onto `window` rather than declared with `const` so the popup can
+ * re-inject this file into a tab without throwing "already declared".
+ */
+window.AAF =
+  window.AAF ||
+  (((): AAFApi => {
+    // Cross-browser API handle (Chrome uses `chrome`, Firefox exposes `browser`).
+    const api: AAFExtensionApi =
+      typeof browser !== "undefined" && browser.storage ? browser : chrome;
+
+    const DEFAULTS: AAFState = {
+      profile: {
+        firstName: "",
+        lastName: "",
+        fullName: "",
+        email: "",
+        phone: "",
+        linkedin: "",
+        github: "",
+        portfolio: "",
+        location: "",
+        addressLine1: "",
+        addressLine2: "",
+        city: "",
+        state: "",
+        postalCode: "",
+        country: "",
+        workAuthorized: "Yes",
+        requireSponsorship: "No",
+        hearAbout: ""
+      },
+      // Learned fields: normalizedLabel -> { value, sample, ts }
+      learned: {},
+      settings: {
+        autofillOnLoad: false,
+        learnFields: true
+      }
+    };
+
+    async function getAll(): Promise<AAFState> {
+      // The explicit type argument selects the promise-returning overload and
+      // narrows `keys` to the three stored top-level keys.
+      const stored = await api.storage.local.get<Partial<AAFState>>([
+        "profile",
+        "learned",
+        "settings"
+      ]);
+      return {
+        profile: { ...DEFAULTS.profile, ...(stored?.profile || {}) },
+        learned: { ...(stored?.learned || {}) },
+        settings: { ...DEFAULTS.settings, ...(stored?.settings || {}) }
+      };
+    }
+
+    const setProfile = (p: AAFProfile): Promise<void> => api.storage.local.set({ profile: p });
+    const setLearned = (l: AAFLearned): Promise<void> => api.storage.local.set({ learned: l });
+    const setSettings = (s: AAFSettings): Promise<void> => api.storage.local.set({ settings: s });
+
+    function normalizeLabel(s: string | null | undefined): string {
+      return (s || "")
+        .replace(/\*/g, " ")
+        .replace(/\(required\)/gi, " ")
+        .replace(/\(optional\)/gi, " ")
+        .replace(/required/gi, " ")
+        .replace(/[:：]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+    }
+
+    // Ordered: more specific labels first so "first name" wins over generic "name".
+    const MATCHERS: readonly AAFMatcher[] = [
+      { key: "firstName", test: (l) => /\b(first|given)\s*name\b/.test(l) },
+      { key: "lastName", test: (l) => /\b(last|family|sur)\s*name\b/.test(l) },
+      { key: "fullName", test: (l) => l === "name" || /\b(full|legal|your)\s*name\b/.test(l) },
+      { key: "email", test: (l) => /\be-?mail\b/.test(l) },
+      // Only the plain phone-number field. Exclude Workday's phone-adjacent
+      // fields: "Phone Extension", "Phone Device Type", "Country Phone Code".
+      {
+        key: "phone",
+        test: (l) =>
+          /\b(phone|mobile|telephone|cell)\b/.test(l) && !/\b(extension|code|type|device)\b/.test(l)
+      },
+      { key: "linkedin", test: (l) => /linkedin/.test(l) },
+      { key: "github", test: (l) => /github/.test(l) },
+      {
+        key: "portfolio",
+        test: (l) =>
+          /\b(portfolio|personal\s*(site|website)|website|web\s*site|your\s*url)\b/.test(l)
+      },
+      { key: "location", test: (l) => /\b(city|location|where.*(based|located|live))\b/.test(l) },
+      { key: "requireSponsorship", test: (l) => /\bsponsor(ship)?\b/.test(l) },
+      {
+        key: "workAuthorized",
+        test: (l) =>
+          /\b(authoriz|authoris|legally.*work|eligible.*work|right to work)\b/.test(l)
+      },
+      {
+        key: "hearAbout",
+        test: (l) =>
+          /\bhear\b.*\babout\b|how.*\blearn\b.*\babout\b|how.*find.*(us|this|role)/.test(l)
+      }
+    ];
+
+    // Returns a profile key for a normalized label, or null.
+    function matchProfileKey(normLabel: string): AAFProfileKey | null {
+      for (const m of MATCHERS) {
+        if (m.test(normLabel)) return m.key;
+      }
+      return null;
+    }
+
+    // ---------- Workday support ----------
+    // Workday tags every field with data-automation-id="formField-<key>". These
+    // keys are far more stable than the visible label text, so we map them
+    // directly to profile keys. The suffix is what follows "formField-".
+    const WORKDAY_FIELD_MAP: Record<string, AAFProfileKey> = {
+      "legalName--firstName": "firstName",
+      "legalName--lastName": "lastName",
+      "preferredName--firstName": "firstName",
+      "preferredName--lastName": "lastName",
+      addressLine1: "addressLine1",
+      addressLine2: "addressLine2",
+      city: "city",
+      countryRegion: "state",
+      postalCode: "postalCode",
+      country: "country",
+      phoneNumber: "phone",
+      source: "hearAbout"
+    };
+
+    // Returns a profile key for a Workday formField suffix, or null.
+    function workdayFieldKey(suffix: string): AAFProfileKey | null {
+      return WORKDAY_FIELD_MAP[suffix] || null;
+    }
+
+    // ---------- Greenhouse support ----------
+    // Greenhouse gives its built-in fields stable element ids. Custom questions
+    // use `question_<id>` instead, so those still fall back to label matching.
+    const GREENHOUSE_FIELD_MAP: Record<string, AAFProfileKey> = {
+      first_name: "firstName",
+      last_name: "lastName",
+      email: "email",
+      phone: "phone"
+    };
+
+    // Returns a profile key for a Greenhouse element id, or null.
+    function greenhouseFieldKey(id: string): AAFProfileKey | null {
+      return GREENHOUSE_FIELD_MAP[id] || null;
+    }
+
+    // ---------- Multi-answer values ----------
+    // Some dropdowns (e.g. Greenhouse's race/ethnicity question) accept several
+    // answers at once. Those are stored as one editable string so the options
+    // page can still show and edit them in a plain text box. An option whose own
+    // text contains "|" would be split incorrectly, which no real option does.
+    const MULTI_SEPARATOR = " | ";
+
+    function splitMulti(value: string | null | undefined): string[] {
+      return String(value == null ? "" : value)
+        .split("|")
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+
+    function joinMulti(list: readonly string[]): string {
+      return (list || []).filter(Boolean).join(MULTI_SEPARATOR);
+    }
+
+    // Resolve the string value to place in a field for a given profile key.
+    function profileValue(profile: AAFProfile, key: AAFProfileKey): string {
+      if (key === "fullName" && !profile.fullName) {
+        const composed = [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim();
+        return composed || "";
+      }
+      return profile[key] || "";
+    }
+
+    // ---------- Profile completeness ----------
+    // Fields counted by the popup's completeness meter. `addressLine2` is left
+    // out because it is legitimately blank for most addresses, and the two
+    // work-authorization selects are left out because they always carry a
+    // default value and would inflate the score.
+    const COMPLETENESS_FIELDS: readonly AAFProfileKey[] = [
+      "firstName",
+      "lastName",
+      "fullName",
+      "email",
+      "phone",
+      "linkedin",
+      "github",
+      "portfolio",
+      "location",
+      "addressLine1",
+      "city",
+      "state",
+      "postalCode",
+      "country",
+      "hearAbout"
+    ];
+
+    // Without these a fill produces almost nothing useful.
+    const ESSENTIAL_FIELDS: readonly AAFProfileKey[] = [
+      "firstName",
+      "lastName",
+      "email",
+      "phone"
+    ];
+
+    const FIELD_LABELS: Partial<Record<AAFProfileKey, string>> = {
+      firstName: "first name",
+      lastName: "last name",
+      email: "email",
+      phone: "phone"
+    };
+
+    function profileStats(profile: AAFProfile): AAFProfileStats {
+      const filled = COMPLETENESS_FIELDS.filter((k) => !!profileValue(profile, k)).length;
+      const missingEssential = ESSENTIAL_FIELDS.filter((k) => !profileValue(profile, k));
+      return { filled, total: COMPLETENESS_FIELDS.length, missingEssential: [...missingEssential] };
+    }
+
+    return {
+      api,
+      DEFAULTS,
+      getAll,
+      setProfile,
+      setLearned,
+      setSettings,
+      normalizeLabel,
+      MATCHERS,
+      matchProfileKey,
+      workdayFieldKey,
+      greenhouseFieldKey,
+      MULTI_SEPARATOR,
+      splitMulti,
+      joinMulti,
+      profileValue,
+      COMPLETENESS_FIELDS,
+      ESSENTIAL_FIELDS,
+      FIELD_LABELS,
+      profileStats
+    };
+  })());

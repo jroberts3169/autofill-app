@@ -39,8 +39,8 @@
   $("fill").addEventListener("click", async () => {
     status.textContent = "";
     const tab = await activeTab();
-    if (!tab || !/ashbyhq\.com/.test(tab.url || "")) {
-      status.textContent = "Open an Ashby application page first.";
+    if (!tab || !/(ashbyhq\.com|myworkdayjobs\.com|myworkdaysite\.com)/.test(tab.url || "")) {
+      status.textContent = "Open an Ashby or Workday application page first.";
       return;
     }
     $("fill").disabled = true;

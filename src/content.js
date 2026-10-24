@@ -1,8 +1,8 @@
 /*
- * content.js — runs on *.ashbyhq.com pages.
+ * content.js — runs on AshbyHQ and Workday application pages.
  * - Fills known profile fields + previously learned fields.
  * - Learns new field values as you type them (change events).
- * - Never submits: it only fills, then shows a "review before submitting" toast.
+ * - Never submits, and never fills sign-in / create-account screens.
  */
 (() => {
   "use strict";
@@ -96,9 +96,42 @@
   function fillTextLike(el, value) {
     if (!value) return false;
     if (cleanText(el.value) === cleanText(value)) return false; // already set
+
+    const proto =
+      el.tagName === "TEXTAREA"
+        ? window.HTMLTextAreaElement.prototype
+        : window.HTMLInputElement.prototype;
+    const desc = Object.getOwnPropertyDescriptor(proto, "value");
+    const setVal = (v) => {
+      if (desc && desc.set) desc.set.call(el, v);
+      else el.value = v;
+    };
+
+    // Workday inputs are React-controlled: if React doesn't observe a genuine
+    // edit, its next render writes its own (empty) state back and the field
+    // ends up "valid but blank". Emulate a real edit:
+    //  1. focus,
+    //  2. blank the field first so React's value tracker always sees a change,
+    //  3. set the value and fire real InputEvents (what React's onChange reads),
+    //  4. defer blur so validation runs AFTER React commits — not before.
     el.focus();
-    setNativeValue(el, value);
-    el.blur();
+    el.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+
+    setVal("");
+    el.dispatchEvent(
+      new InputEvent("input", { bubbles: true, inputType: "deleteContentBackward" })
+    );
+
+    setVal(value);
+    el.dispatchEvent(
+      new InputEvent("input", { bubbles: true, inputType: "insertFromPaste", data: value })
+    );
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+
+    setTimeout(() => {
+      el.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+      el.blur();
+    }, 0);
     return true;
   }
 
@@ -168,6 +201,99 @@
     return false;
   }
 
+  // ---------- Workday support ----------
+
+  // Poll `fn` until it returns a truthy value or the timeout elapses.
+  function waitFor(fn, timeout = 1500, interval = 60) {
+    return new Promise((resolve) => {
+      const start = Date.now();
+      const tick = () => {
+        let r = null;
+        try {
+          r = fn();
+        } catch (_) {
+          /* ignore */
+        }
+        if (r) return resolve(r);
+        if (Date.now() - start >= timeout) return resolve(null);
+        setTimeout(tick, interval);
+      };
+      tick();
+    });
+  }
+
+  // The Workday form field wrapping a control, e.g. formField-legalName--firstName.
+  function workdayField(el) {
+    return el.closest ? el.closest("[data-automation-id^='formField-']") : null;
+  }
+
+  // Map a control to a profile key via its Workday formField automation id.
+  function workdayKeyForControl(el) {
+    const field = workdayField(el);
+    if (!field) return null;
+    const aid = field.getAttribute("data-automation-id") || "";
+    return AAF.workdayFieldKey(aid.replace(/^formField-/, ""));
+  }
+
+  // A control that belongs to a Workday custom dropdown / multiselect widget —
+  // these are driven by their <button>/search input, not by the raw field, so
+  // the main text pass must skip them.
+  function isWorkdayWidgetControl(el) {
+    const field = workdayField(el);
+    if (!field) return false;
+    return !!(
+      field.querySelector("button[aria-haspopup='listbox']") ||
+      field.querySelector("[data-automation-id='multiSelectContainer']")
+    );
+  }
+
+  // Never autofill on a sign-in / create-account screen.
+  function isLoginPage() {
+    if (document.querySelector("input[type='password']")) return true;
+    return !!document.querySelector(
+      "[data-automation-id='signInContent'], [data-automation-id='createAccountPage'], [data-automation-id='authViewTitle']"
+    );
+  }
+
+  // Fill a Workday button-based dropdown (aria-haspopup="listbox"). Opens the
+  // menu, waits for the detached option list, and clicks the best match.
+  async function fillWorkdayDropdown(button, value) {
+    if (!value) return false;
+    const want = value.toLowerCase();
+    const current = cleanText(button.textContent).toLowerCase();
+    if (current && current !== "select one" && (current === want || current.includes(want))) {
+      return false; // already set
+    }
+    button.focus();
+    button.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    button.click();
+
+    const opt = await waitFor(() => {
+      const list = document.querySelectorAll(
+        "[role='option'], [data-automation-id='promptOption']"
+      );
+      let partial = null;
+      for (const o of list) {
+        if (!isVisible(o)) continue;
+        const t = cleanText(
+          o.getAttribute("data-automation-label") || o.textContent || ""
+        ).toLowerCase();
+        if (!t) continue;
+        if (t === want) return o;
+        if (!partial && t.includes(want)) partial = o;
+      }
+      return partial;
+    }, 1500);
+
+    if (!opt) {
+      button.click(); // close the menu we opened
+      return false;
+    }
+    opt.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    opt.click();
+    return true;
+  }
+
   // ---------- Control discovery ----------
 
   function getControls() {
@@ -201,20 +327,31 @@
 
   async function fillAll() {
     if (!STATE) await loadState();
+
+    // Honor "never fill login": bail out on sign-in / create-account screens.
+    if (isLoginPage()) {
+      toast("Sign in first — login pages are never autofilled.");
+      return 0;
+    }
+
     const controls = getControls();
     let filled = 0;
     const seenRadioGroups = new Set();
 
     for (const el of controls) {
+      // Workday dropdown / multiselect widgets are handled in a dedicated pass.
+      if (isWorkdayWidgetControl(el)) continue;
+
       const raw = labelText(el);
       const norm = AAF.normalizeLabel(raw);
       if (!norm) continue;
 
       const type = (el.type || "").toLowerCase();
 
-      // Determine desired value: profile match first, then learned store.
+      // Determine desired value: Workday field id first, then label-based
+      // profile match, then the learned store.
       let value = "";
-      const profileKey = AAF.matchProfileKey(norm);
+      const profileKey = workdayKeyForControl(el) || AAF.matchProfileKey(norm);
       if (profileKey) {
         value = AAF.profileValue(STATE.profile, profileKey);
       } else if (STATE.learned[norm]) {
@@ -255,6 +392,23 @@
       if (container && fillCombobox(container, value)) filled++;
     }
 
+    // Workday button-based dropdowns (State, Country, "How did you hear", etc.).
+    const wdButtons = document.querySelectorAll("button[aria-haspopup='listbox']");
+    for (const btn of wdButtons) {
+      if (!isVisible(btn)) continue;
+      const norm = AAF.normalizeLabel(labelText(btn));
+      let value = "";
+      const key = workdayKeyForControl(btn) || AAF.matchProfileKey(norm);
+      if (key) value = AAF.profileValue(STATE.profile, key);
+      else if (norm && STATE.learned[norm]) value = STATE.learned[norm].value;
+      if (!value) continue;
+      try {
+        if (await fillWorkdayDropdown(btn, value)) filled++;
+      } catch (e) {
+        /* keep going */
+      }
+    }
+
     if (filled > 0) toast(`Autofilled ${filled} field${filled === 1 ? "" : "s"} — review before submitting.`);
     else toast("Nothing to autofill here yet.");
     return filled;
@@ -274,11 +428,14 @@
     if (!STATE || !STATE.settings.learnFields) return;
     const el = e.target;
     if (!isLearnable(el)) return;
+    // Workday dropdowns store opaque GUIDs in a hidden input — don't learn those.
+    if (isWorkdayWidgetControl(el)) return;
 
     const raw = labelText(el);
     const norm = AAF.normalizeLabel(raw);
     if (!norm) return;
     if (AAF.matchProfileKey(norm)) return; // covered by profile already
+    if (workdayKeyForControl(el)) return; // covered by a Workday profile field
 
     const value = readControlValue(el);
     if (value == null || cleanText(value) === "") return;

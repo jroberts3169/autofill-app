@@ -1,12 +1,16 @@
 {
   "manifest_version": 3,
-  "name": "Ashby Quick Apply (Autofill)",
-  "version": "1.0.0",
-  "description": "Autofills your info on AshbyHQ job application forms. Fill-only — you always review and click submit yourself.",
+  "name": "Quick Apply (Autofill)",
+  "version": "1.1.0",
+  "description": "Autofills your info on AshbyHQ and Workday job application forms. Fill-only — you always review and click submit yourself.",
   "permissions": ["storage", "activeTab"],
-  "host_permissions": ["*://*.ashbyhq.com/*"],
+  "host_permissions": [
+    "*://*.ashbyhq.com/*",
+    "*://*.myworkdayjobs.com/*",
+    "*://*.myworkdaysite.com/*"
+  ],
   "action": {
-    "default_title": "Ashby Quick Apply",
+    "default_title": "Quick Apply",
     "default_popup": "src/popup.html"
   },
   "options_ui": {
@@ -15,7 +19,11 @@
   },
   "content_scripts": [
     {
-      "matches": ["*://*.ashbyhq.com/*"],
+      "matches": [
+        "*://*.ashbyhq.com/*",
+        "*://*.myworkdayjobs.com/*",
+        "*://*.myworkdaysite.com/*"
+      ],
       "js": ["src/common.js", "src/content.js"],
       "run_at": "document_idle",
       "all_frames": true
@@ -23,7 +31,7 @@
   ],
   "browser_specific_settings": {
     "gecko": {
-      "id": "ashby-quick-apply@local",
+      "id": "quick-apply@local",
       "strict_min_version": "115.0"
     }
   }

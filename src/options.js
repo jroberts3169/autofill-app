@@ -4,6 +4,7 @@
   const PROFILE_FIELDS = [
     "firstName", "lastName", "fullName", "email", "phone",
     "linkedin", "github", "portfolio", "location",
+    "addressLine1", "addressLine2", "city", "state", "postalCode", "country",
     "workAuthorized", "requireSponsorship", "hearAbout"
   ];
 

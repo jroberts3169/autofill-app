@@ -18,6 +18,12 @@ const AAF = (() => {
       github: "",
       portfolio: "",
       location: "",
+      addressLine1: "",
+      addressLine2: "",
+      city: "",
+      state: "",
+      postalCode: "",
+      country: "",
       workAuthorized: "Yes",
       requireSponsorship: "No",
       hearAbout: ""
@@ -61,7 +67,9 @@ const AAF = (() => {
     { key: "lastName", test: (l) => /\b(last|family|sur)\s*name\b/.test(l) },
     { key: "fullName", test: (l) => l === "name" || /\b(full|legal|your)\s*name\b/.test(l) },
     { key: "email", test: (l) => /\be-?mail\b/.test(l) },
-    { key: "phone", test: (l) => /\b(phone|mobile|telephone|cell)\b/.test(l) },
+    // Only the plain phone-number field. Exclude Workday's phone-adjacent
+    // fields: "Phone Extension", "Phone Device Type", "Country Phone Code".
+    { key: "phone", test: (l) => /\b(phone|mobile|telephone|cell)\b/.test(l) && !/\b(extension|code|type|device)\b/.test(l) },
     { key: "linkedin", test: (l) => /linkedin/.test(l) },
     { key: "github", test: (l) => /github/.test(l) },
     { key: "portfolio", test: (l) => /\b(portfolio|personal\s*(site|website)|website|web\s*site|your\s*url)\b/.test(l) },
@@ -77,6 +85,30 @@ const AAF = (() => {
       if (m.test(normLabel)) return m.key;
     }
     return null;
+  }
+
+  // ---------- Workday support ----------
+  // Workday tags every field with data-automation-id="formField-<key>". These
+  // keys are far more stable than the visible label text, so we map them
+  // directly to profile keys. The suffix is what follows "formField-".
+  const WORKDAY_FIELD_MAP = {
+    "legalName--firstName": "firstName",
+    "legalName--lastName": "lastName",
+    "preferredName--firstName": "firstName",
+    "preferredName--lastName": "lastName",
+    "addressLine1": "addressLine1",
+    "addressLine2": "addressLine2",
+    "city": "city",
+    "countryRegion": "state",
+    "postalCode": "postalCode",
+    "country": "country",
+    "phoneNumber": "phone",
+    "source": "hearAbout"
+  };
+
+  // Returns a profile key for a Workday formField suffix, or null.
+  function workdayFieldKey(suffix) {
+    return WORKDAY_FIELD_MAP[suffix] || null;
   }
 
   // Resolve the string value to place in a field for a given profile key.
@@ -98,6 +130,7 @@ const AAF = (() => {
     normalizeLabel,
     MATCHERS,
     matchProfileKey,
+    workdayFieldKey,
     profileValue
   };
 })();

@@ -1,19 +1,26 @@
-# Ashby Quick Apply (Autofill)
+# Quick Apply (Autofill)
 
 A small browser extension that autofills **your own** details on
-[AshbyHQ](https://www.ashbyhq.com/) job application forms so you can apply in
-seconds instead of minutes. It is **fill-only**: it never submits an
-application. You always review the form and click submit yourself.
+[AshbyHQ](https://www.ashbyhq.com/) and **Workday** job application forms so you
+can apply in seconds instead of minutes. It is **fill-only**: it never submits an
+application, and it never fills sign-in / create-account screens. You always
+review the form and click submit yourself.
 
 ## What it does
 
-- Runs only on `*.ashbyhq.com` pages (including forms embedded via iframe).
-- Fills standard fields from your saved profile: name, email, phone,
-  LinkedIn / GitHub / portfolio, location, work-authorization / sponsorship,
-  and "how did you hear about us".
+- Runs on `*.ashbyhq.com`, `*.myworkdayjobs.com`, and `*.myworkdaysite.com`
+  pages (including forms embedded via iframe).
+- Fills standard fields from your saved profile: name, email, phone, address
+  (line 1/2, city, state, postal code, country), LinkedIn / GitHub / portfolio,
+  location, work-authorization / sponsorship, and "how did you hear about us".
+- On **Workday**, matches fields by their stable `data-automation-id`
+  (e.g. `formField-legalName--firstName`) and fills its button-based dropdowns
+  (State, Country, source, …). The multi-step wizard is filled one page at a
+  time — click **Fill** on each step (My Information, My Experience, Questions,
+  …).
 - **Learns** other questions as you fill them and auto-fills the same question
   next time it appears.
-- Sets values the React-based Ashby form actually registers (native setter +
+- Sets values the React-based forms actually register (native setter +
   `input`/`change` events).
 - Shows a toast reminding you to review before submitting.
 
@@ -41,11 +48,14 @@ is no network/telemetry.
 
 ## Usage
 
-1. Open an Ashby application page.
+1. Open an Ashby or Workday application page (sign in first on Workday — login
+   screens are never autofilled).
 2. Click the extension icon → **Fill this application** (or enable
    **Auto-fill on page load** in the popup).
 3. Review everything, upload your resume, answer any custom questions, and
    submit yourself.
+4. On Workday's multi-step wizard, click **Fill** again on each step before
+   using its **Save and Continue** button.
 
 Any custom question you answer is remembered (if **Learn new fields** is on) and
 managed under **Learned fields** in the options page, where you can edit or
@@ -56,15 +66,19 @@ delete individual entries.
 | File | Purpose |
 | --- | --- |
 | `manifest.json` | MV3 manifest (Chrome + Firefox) |
-| `src/common.js` | Storage, defaults, label→field matchers (shared) |
-| `src/content.js` | Fill engine, learning, toast (runs on Ashby pages) |
+| `src/common.js` | Storage, defaults, label + Workday field matchers (shared) |
+| `src/content.js` | Fill engine, learning, toast (Ashby + Workday pages) |
 | `src/popup.html/.js` | Toolbar popup: Fill button + toggles |
 | `src/options.html/.js` | Profile editor, learned-field manager, import/export |
 
 ## Notes & limits
 
 - Resume upload and other file inputs are intentionally never touched.
-- Custom react-select dropdowns are best-effort; native `<select>`, text,
-  and Yes/No radio groups are the most reliable.
-- Ashby can change its markup; the matching is label-based and defensive, but
-  if a field stops filling, add it once by hand and it will be learned.
+- Custom react-select dropdowns (Ashby) and button-based listboxes (Workday)
+  are best-effort; native `<select>`, text, and Yes/No radio groups are the most
+  reliable.
+- Workday renders each step on its own page; fill runs per page (click **Fill**
+  on each step). Sign-in / create-account pages are never autofilled.
+- Ashby and Workday can change their markup; matching is defensive (Workday uses
+  stable `data-automation-id`s), but if a field stops filling, add it once by
+  hand and it will be learned.

@@ -50,12 +50,15 @@ is no network/telemetry.
 
 1. Open an Ashby or Workday application page (sign in first on Workday — login
    screens are never autofilled).
-2. Click the extension icon → **Fill this application** (or enable
-   **Auto-fill on page load** in the popup).
+2. Click the extension icon. The popup reports what it found on the page —
+   **Fill this application** is enabled once the form is detected.
 3. Review everything, upload your resume, answer any custom questions, and
    submit yourself.
 4. On Workday's multi-step wizard, click **Fill** again on each step before
    using its **Save and Continue** button.
+
+The popup also shows a **Profile** completeness meter so you can spot missing
+essentials (such as a phone number) before you start an application.
 
 Any custom question you answer is remembered (if **Learn new fields** is on) and
 managed under **Learned fields** in the options page, where you can edit or
@@ -68,7 +71,7 @@ delete individual entries.
 | `manifest.json` | MV3 manifest (Chrome + Firefox) |
 | `src/common.js` | Storage, defaults, label + Workday field matchers (shared) |
 | `src/content.js` | Fill engine, learning, toast (Ashby + Workday pages) |
-| `src/popup.html/.js` | Toolbar popup: Fill button + toggles |
+| `src/popup.html/.js` | Toolbar popup: page status, Fill button, profile meter, toggles |
 | `src/options.html/.js` | Profile editor, learned-field manager, import/export |
 
 ## Notes & limits

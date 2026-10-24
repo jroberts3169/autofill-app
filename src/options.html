@@ -5,16 +5,53 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Quick Apply — Profile</title>
     <style>
-      :root { color-scheme: light dark; }
+      :root {
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --fg: #111827;
+        --muted: #6b7280;
+        --border: #e5e7eb;
+        --field-border: #cbd5e1;
+        --surface: #f9fafb;
+        --accent: #2563eb;
+        --accent-hover: #1d4ed8;
+        --secondary-bg: #e5e7eb;
+        --secondary-fg: #111827;
+        --secondary-hover: brightness(0.96);
+        --ok: #16a34a;
+        --err: #dc2626;
+        --empty: #9ca3af;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #1b1f27;
+          --fg: #e8eaed;
+          --muted: #99a1b3;
+          --border: #333b49;
+          --field-border: #414b5c;
+          --surface: #232a35;
+          --accent: #3b82f6;
+          --accent-hover: #60a5fa;
+          --secondary-bg: #2e3643;
+          --secondary-fg: #e8eaed;
+          --secondary-hover: brightness(1.18);
+          --ok: #4ade80;
+          --err: #f87171;
+          --empty: #767f91;
+        }
+      }
+      * { box-sizing: border-box; }
       body {
         max-width: 720px;
         margin: 0 auto;
         padding: 28px 20px 60px;
+        background: var(--bg);
+        color: var(--fg);
         font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
       h1 { font-size: 20px; margin: 0 0 4px; }
       h2 { font-size: 15px; margin: 28px 0 10px; }
-      p.muted { color: #6b7280; margin-top: 0; }
+      p.muted { color: var(--muted); margin-top: 0; }
       .grid {
         display: grid;
         grid-template-columns: 180px 1fr;
@@ -25,34 +62,54 @@
       input[type="text"], input[type="email"], input[type="tel"], input[type="url"], select {
         width: 100%;
         padding: 7px 9px;
-        border: 1px solid #cbd5e1;
+        border: 1px solid var(--field-border);
         border-radius: 6px;
         font-size: 14px;
         box-sizing: border-box;
         background: Field;
         color: FieldText;
       }
-      .actions { margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap; }
+      input:focus-visible, select:focus-visible, textarea:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 1px;
+      }
+      .actions { margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
       button {
         padding: 9px 16px;
         font-size: 14px;
         font-weight: 600;
         border: 0;
         border-radius: 8px;
-        background: #2563eb;
+        background: var(--accent);
         color: #fff;
         cursor: pointer;
+        transition: background 0.15s ease, transform 0.08s ease;
       }
-      button.secondary { background: #e5e7eb; color: #111827; }
-      button:hover { filter: brightness(0.96); }
-      #saved { color: #16a34a; font-weight: 600; margin-left: 6px; }
+      button:hover { background: var(--accent-hover); }
+      button:active { transform: translateY(1px); }
+      button.secondary { background: var(--secondary-bg); color: var(--secondary-fg); }
+      button.secondary:hover { background: var(--secondary-bg); filter: var(--secondary-hover); }
+      #saved { color: var(--ok); font-weight: 600; margin-left: 6px; }
       table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-      th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
-      th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; }
-      td input { width: 100%; padding: 5px 7px; border: 1px solid #cbd5e1; border-radius: 5px; box-sizing: border-box; }
-      td.del button { background: transparent; color: #dc2626; padding: 4px 6px; }
-      .empty { color: #9ca3af; font-style: italic; }
-      textarea { width: 100%; min-height: 90px; box-sizing: border-box; }
+      th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+      th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+      td input { width: 100%; padding: 5px 7px; border: 1px solid var(--field-border); border-radius: 5px; box-sizing: border-box; }
+      td.del button { background: transparent; color: var(--err); padding: 4px 6px; }
+      .empty { color: var(--empty); font-style: italic; }
+      textarea {
+        width: 100%;
+        min-height: 90px;
+        box-sizing: border-box;
+        padding: 8px 10px;
+        border: 1px solid var(--field-border);
+        border-radius: 6px;
+        background: Field;
+        color: FieldText;
+        font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * { animation: none !important; transition: none !important; }
+      }
     </style>
   </head>
   <body>

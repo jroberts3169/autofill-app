@@ -120,6 +120,33 @@ const AAF = (() => {
     return profile[key] || "";
   }
 
+  // ---------- Profile completeness ----------
+  // Fields counted by the popup's completeness meter. `addressLine2` is left
+  // out because it is legitimately blank for most addresses, and the two
+  // work-authorization selects are left out because they always carry a
+  // default value and would inflate the score.
+  const COMPLETENESS_FIELDS = [
+    "firstName", "lastName", "fullName", "email", "phone",
+    "linkedin", "github", "portfolio", "location",
+    "addressLine1", "city", "state", "postalCode", "country", "hearAbout"
+  ];
+
+  // Without these a fill produces almost nothing useful.
+  const ESSENTIAL_FIELDS = ["firstName", "lastName", "email", "phone"];
+
+  const FIELD_LABELS = {
+    firstName: "first name",
+    lastName: "last name",
+    email: "email",
+    phone: "phone"
+  };
+
+  function profileStats(profile) {
+    const filled = COMPLETENESS_FIELDS.filter((k) => !!profileValue(profile, k)).length;
+    const missingEssential = ESSENTIAL_FIELDS.filter((k) => !profileValue(profile, k));
+    return { filled, total: COMPLETENESS_FIELDS.length, missingEssential };
+  }
+
   return {
     api,
     DEFAULTS,
@@ -131,6 +158,10 @@ const AAF = (() => {
     MATCHERS,
     matchProfileKey,
     workdayFieldKey,
-    profileValue
+    profileValue,
+    COMPLETENESS_FIELDS,
+    ESSENTIAL_FIELDS,
+    FIELD_LABELS,
+    profileStats
   };
 })();

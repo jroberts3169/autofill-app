@@ -5,61 +5,278 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Quick Apply</title>
     <style>
-      :root { color-scheme: light dark; }
+      :root {
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --fg: #111827;
+        --muted: #6b7280;
+        --border: #e5e7eb;
+        --surface: #f9fafb;
+        --track: #e5e7eb;
+        --accent: #2563eb;
+        --accent-hover: #1d4ed8;
+        --ok: #15803d;
+        --ok-bg: #dcfce7;
+        --warn: #b45309;
+        --warn-bg: #fef3c7;
+        --err: #b91c1c;
+        --err-bg: #fee2e2;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #1b1f27;
+          --fg: #e8eaed;
+          --muted: #99a1b3;
+          --border: #333b49;
+          --surface: #232a35;
+          --track: #333b49;
+          --accent: #3b82f6;
+          --accent-hover: #60a5fa;
+          --ok: #4ade80;
+          --ok-bg: #14321f;
+          --warn: #fbbf24;
+          --warn-bg: #3a2c0c;
+          --err: #f87171;
+          --err-bg: #3f1d1d;
+        }
+      }
+      * { box-sizing: border-box; }
       body {
-        width: 280px;
+        width: 300px;
         margin: 0;
         padding: 14px;
+        background: var(--bg);
+        color: var(--fg);
         font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
-      h1 { font-size: 14px; margin: 0 0 10px; }
+
+      /* ---------- Header ---------- */
+      header { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+      .mark {
+        width: 28px;
+        height: 28px;
+        flex: none;
+        display: grid;
+        place-items: center;
+        border-radius: 8px;
+        color: #fff;
+        background: linear-gradient(135deg, #3b82f6, #6366f1);
+        box-shadow: 0 1px 3px rgba(37, 99, 235, 0.45);
+      }
+      h1 { font-size: 14px; margin: 0; line-height: 1.2; }
+      header .muted { display: block; }
+
+      /* ---------- Page status chip ---------- */
+      .chip {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 7px 10px;
+        margin-bottom: 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .chip .dot {
+        width: 7px;
+        height: 7px;
+        flex: none;
+        border-radius: 50%;
+        background: var(--muted);
+      }
+      .chip.ok { color: var(--ok); background: var(--ok-bg); border-color: transparent; }
+      .chip.ok .dot { background: var(--ok); }
+      .chip.warn { color: var(--warn); background: var(--warn-bg); border-color: transparent; }
+      .chip.warn .dot { background: var(--warn); }
+
+      /* ---------- Primary button ---------- */
       button {
         width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
         padding: 9px 12px;
         font-size: 13px;
         font-weight: 600;
         border: 0;
         border-radius: 8px;
-        background: #2563eb;
+        background: var(--accent);
         color: #fff;
         cursor: pointer;
+        transition: background 0.15s ease, transform 0.08s ease;
       }
-      button:hover { background: #1d4ed8; }
-      button:disabled { opacity: 0.5; cursor: default; }
+      button:hover:not(:disabled) { background: var(--accent-hover); }
+      button:active:not(:disabled) { transform: translateY(1px); }
+      button:disabled { opacity: 0.45; cursor: default; }
+      .spinner {
+        display: none;
+        width: 13px;
+        height: 13px;
+        flex: none;
+        border: 2px solid rgba(255, 255, 255, 0.4);
+        border-top-color: #fff;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+      }
+      button.busy .spinner { display: block; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      /* ---------- Fill result ---------- */
+      #status { margin-top: 9px; min-height: 16px; font-size: 12px; color: var(--muted); }
+      #status:not(:empty) { animation: fade 0.18s ease; }
+      #status.ok { color: var(--ok); font-weight: 600; }
+      #status.warn { color: var(--warn); }
+      #status.err { color: var(--err); }
+      @keyframes fade { from { opacity: 0; transform: translateY(-2px); } }
+
+      /* ---------- Profile meter ---------- */
+      .meter { margin: 12px 0; }
+      .meter-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 5px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .track { height: 5px; border-radius: 999px; background: var(--track); overflow: hidden; }
+      .bar {
+        height: 100%;
+        width: 0;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #3b82f6, #6366f1);
+        transition: width 0.35s ease;
+      }
+      .bar.low { background: linear-gradient(90deg, #f59e0b, #f97316); }
+      #profileHint { margin-top: 5px; font-size: 11px; color: var(--muted); }
+
+      /* ---------- Toggles ---------- */
       .row {
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 8px;
-        margin: 12px 0;
+        margin: 10px 0;
       }
-      label.toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-      .muted { color: #6b7280; font-size: 12px; }
-      #status { margin-top: 10px; min-height: 16px; }
-      a { color: #2563eb; cursor: pointer; text-decoration: none; }
+      label.toggle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        width: 100%;
+        cursor: pointer;
+      }
+      .switch {
+        appearance: none;
+        -webkit-appearance: none;
+        position: relative;
+        width: 34px;
+        height: 20px;
+        flex: none;
+        margin: 0;
+        border-radius: 999px;
+        background: var(--track);
+        cursor: pointer;
+        transition: background 0.18s ease;
+      }
+      .switch::after {
+        content: "";
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+        transition: transform 0.18s ease;
+      }
+      .switch:checked { background: var(--accent); }
+      .switch:checked::after { transform: translateX(14px); }
+      .switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+      /* ---------- Footer ---------- */
+      .muted { color: var(--muted); font-size: 12px; }
+      a { color: var(--accent); cursor: pointer; text-decoration: none; }
       a:hover { text-decoration: underline; }
-      hr { border: 0; border-top: 1px solid #e5e7eb; margin: 12px 0; }
+      .badge {
+        padding: 1px 7px;
+        border-radius: 999px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+      }
+      hr { border: 0; border-top: 1px solid var(--border); margin: 12px 0; }
+      footer { margin: 10px 0 0; font-size: 11px; color: var(--muted); }
+
+      @media (prefers-reduced-motion: reduce) {
+        * { animation: none !important; transition: none !important; }
+      }
     </style>
   </head>
   <body>
-    <h1>Quick Apply</h1>
-    <button id="fill">Fill this application</button>
-    <div id="status" class="muted"></div>
+    <header>
+      <span class="mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+          <path d="M13 2 4.5 13.2h5.3L9 22l8.6-11.3h-5.3z" />
+        </svg>
+      </span>
+      <span>
+        <h1>Quick Apply</h1>
+        <span class="muted">Fill-only — you always submit</span>
+      </span>
+    </header>
+
+    <div id="chip" class="chip">
+      <span class="dot" aria-hidden="true"></span>
+      <span id="chipText">Checking this page…</span>
+    </div>
+
+    <button id="fill" disabled>
+      <span class="spinner" aria-hidden="true"></span>
+      <span>Fill this application</span>
+    </button>
+    <div id="status" role="status" aria-live="polite"></div>
+
+    <hr />
+
+    <div class="meter">
+      <div class="meter-head">
+        <span>Profile</span>
+        <span id="profileCount" class="muted">—</span>
+      </div>
+      <div class="track">
+        <div id="profileBar" class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Profile completeness"></div>
+      </div>
+      <div id="profileHint"></div>
+    </div>
 
     <hr />
 
     <div class="row">
-      <label class="toggle"><input type="checkbox" id="autofill" /> Auto-fill on page load</label>
+      <label class="toggle">
+        Auto-fill on page load
+        <input type="checkbox" class="switch" id="autofill" />
+      </label>
     </div>
     <div class="row">
-      <label class="toggle"><input type="checkbox" id="learn" /> Learn new fields</label>
+      <label class="toggle">
+        Learn new fields
+        <input type="checkbox" class="switch" id="learn" />
+      </label>
     </div>
 
     <hr />
     <div class="row">
       <a id="options">Edit profile &amp; learned fields →</a>
+      <span id="learnedCount" class="badge">0</span>
     </div>
-    <p class="muted">Fill-only. Always review and submit yourself.</p>
+    <footer>Nothing is ever submitted for you.</footer>
 
     <script src="common.js"></script>
     <script src="popup.js"></script>

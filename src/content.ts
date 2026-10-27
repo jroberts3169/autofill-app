@@ -115,7 +115,38 @@
     el.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
-  function fillTextLike(el: HTMLInputElement | HTMLTextAreaElement, value: string): boolean {
+  // ---------- Pointer interaction ----------
+  //
+  // Ashby's Yes/No toggles and opacity-0 radios commit their answer from a
+  // click handler. A bare element.click() dispatches only a `click` event; some
+  // handlers also (or instead) listen on pointerdown/mousedown, and firing the
+  // full sequence is what reliably registers the choice. Everything is a plain
+  // synchronous dispatch — no focus juggling, which only triggered extra React
+  // re-renders that intermittently reverted other fields.
+  function pressElement(el: Element): void {
+    const opts = { bubbles: true, cancelable: true, button: 0, view: window } as const;
+    if (el instanceof HTMLElement) el.focus();
+    try {
+      el.dispatchEvent(new PointerEvent("pointerdown", opts));
+    } catch (e) {
+      /* PointerEvent unsupported — mouse events below are enough */
+    }
+    el.dispatchEvent(new MouseEvent("mousedown", opts));
+    try {
+      el.dispatchEvent(new PointerEvent("pointerup", opts));
+    } catch (e) {
+      /* ignore */
+    }
+    el.dispatchEvent(new MouseEvent("mouseup", opts));
+    el.dispatchEvent(new MouseEvent("click", opts));
+  }
+
+  const tick = (ms = 0): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+  function fillTextLike(
+    el: HTMLInputElement | HTMLTextAreaElement,
+    value: string
+  ): boolean {
     if (!value) return false;
     if (cleanText(el.value) === cleanText(value)) return false; // already set
 
@@ -125,29 +156,25 @@
       else el.value = v;
     };
 
-    // Workday inputs are React-controlled: if React doesn't observe a genuine
-    // edit, its next render writes its own (empty) state back and the field
-    // ends up "valid but blank". Emulate a real edit:
-    //  1. focus,
-    //  2. blank the field first so React's value tracker always sees a change,
-    //  3. set the value and fire real InputEvents (what React's onChange reads),
-    //  4. defer blur so validation runs AFTER React commits — not before.
+    // Emulate a genuine field interaction: focus, type, blur. Ashby mirrors
+    // each field's live value into a separate "saved" value that its submit
+    // validation reads, and that mirror is driven by the real focus→input→blur
+    // cycle — setting the value alone updates what you see but not what gets
+    // submitted, so the field reports "missing" on submit. The native value
+    // setter bypasses React's per-input value tracker so a single input event
+    // registers as a real change and React's onChange fires.
     el.focus();
     el.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
-
-    setVal("");
-    el.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "deleteContentBackward" }));
-
+    el.dispatchEvent(
+      new InputEvent("beforeinput", { bubbles: true, cancelable: true, inputType: "insertFromPaste", data: value })
+    );
     setVal(value);
     el.dispatchEvent(
       new InputEvent("input", { bubbles: true, inputType: "insertFromPaste", data: value })
     );
     el.dispatchEvent(new Event("change", { bubbles: true }));
-
-    setTimeout(() => {
-      el.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
-      el.blur();
-    }, 0);
+    el.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+    el.blur();
     return true;
   }
 
@@ -244,8 +271,7 @@
     if (!match && want.length >= 4) match = opts.find((o) => o.text.includes(want));
     if (!match || match.r.checked) return false;
 
-    match.r.focus();
-    match.r.click();
+    pressElement(match.r);
     return true;
   }
 
@@ -303,8 +329,7 @@
     const btnType = (match.b.getAttribute("type") || "submit").toLowerCase();
     if (btnType === "submit" && match.b.closest("form")) return false;
 
-    match.b.focus();
-    match.b.click();
+    pressElement(match.b);
     return true;
   }
 
@@ -656,11 +681,20 @@
             radio.name || radio.closest("fieldset, [role='radiogroup']") || radio;
           if (seenRadioGroups.has(groupKey)) continue;
           seenRadioGroups.add(groupKey);
-          if (fillRadioGroup(radioGroupMembers(radio), value)) filled++;
+          if (fillRadioGroup(radioGroupMembers(radio), value)) {
+            filled++;
+            await tick(20);
+          }
         } else if (el.tagName === "SELECT") {
           if (fillNativeSelect(el as HTMLSelectElement, value)) filled++;
         } else {
-          if (fillTextLike(el as HTMLInputElement, value)) filled++;
+          // Yield after each field so React/Ashby fully commits it (including
+          // mirroring into the submitted value) before the next edit; a tight
+          // burst batches and intermittently drops commits.
+          if (fillTextLike(el as HTMLInputElement, value)) {
+            filled++;
+            await tick(20);
+          }
         }
       } catch (e) {
         /* keep going */
@@ -697,7 +731,13 @@
       else if (state.learned[norm]) value = state.learned[norm].value;
       if (!value) continue;
       try {
-        if (fillButtonGroup(group.buttons, value)) filled++;
+        // Yield before each group too, so the previous field (text or button)
+        // has fully committed before this choice is clicked.
+        await tick(50);
+        if (fillButtonGroup(group.buttons, value)) {
+          filled++;
+          await tick(50);
+        }
       } catch (e) {
         /* keep going */
       }

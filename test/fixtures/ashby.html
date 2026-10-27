@@ -19,6 +19,10 @@
       and whose real value is only committed by picking a suggestion.
     - Text inputs are controlled: a value written without an `input` event is
       reverted.
+    - A text field's value is COMMITTED to the form's submit payload by the
+      same React onChange the `input` event drives (the fill sets the value via
+      the native setter, so the value tracker registers a real change).
+      `window.__ashbyCommitted` is that payload.
 -->
 <html lang="en">
   <head>
@@ -296,11 +300,21 @@
       // ---------------------------------------------------------------------
       // Controlled-input emulation: anything written without a real `input`
       // event is reverted, exactly like React's value tracker.
+      //
+      // Ashby commits a field to its submit payload from the same React
+      // onChange that the `input` event drives (the fill sets the value through
+      // the native setter, so the value tracker sees a real change). A value
+      // assigned WITHOUT an `input` event is shown but never committed, which
+      // is the "this field is required" error users hit.
       // ---------------------------------------------------------------------
+      window.__ashbyCommitted = {};
       document.querySelectorAll("input[type=text], input[type=email], input[type=tel], input[type=url], textarea").forEach((el) => {
         if (el.getAttribute("role") === "combobox") return; // handled above
         el.__reactValue = "";
-        el.addEventListener("input", () => { el.__reactValue = el.value; });
+        el.addEventListener("input", () => {
+          el.__reactValue = el.value;
+          window.__ashbyCommitted[el.id] = el.value;
+        });
         setInterval(() => {
           if (el.value !== el.__reactValue) el.value = el.__reactValue;
         }, 50);

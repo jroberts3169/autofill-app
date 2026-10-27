@@ -483,6 +483,70 @@ async function ashbyFill(browser: Browser): Promise<void> {
     eq("third fill is a no-op (idempotent)", await fill(page, 2000), 0);
 
     eq("DOM and controlled state agree on every field", await page.evaluate(readControlledStateMismatches), []);
+
+    // Visible text is not enough: Ashby validates the value it committed to its
+    // submit payload via onChange, so every text field must have reached it.
+    eq(
+      "text fields reached the submit payload",
+      await page.evaluate(() => {
+        const c = (window as never as { __ashbyCommitted: Record<string, string> }).__ashbyCommitted;
+        return ["_systemfield_name", "_systemfield_email", "_systemfield_phone"].filter(
+          (id) => !c[id]
+        );
+      }),
+      []
+    );
+  } finally {
+    await page.close();
+  }
+}
+/**
+ * Visible text is not enough on Ashby: a field is accepted only if the engine
+ * drove the value through a real edit (native setter + input event), which is
+ * what commits it to the submit payload. An earlier engine blanked the field
+ * first, making React coalesce the two edits into "no net change" so the value
+ * showed on screen but submitted blank ("this field is required").
+ */
+async function ashbyCommitsSubmitPayload(browser: Browser): Promise<void> {
+  suite("Ashby — commits fields to the submit payload");
+  const page = await openAshby(browser);
+  try {
+    await install(page, {
+      profile: PROFILE,
+      learned: { "zip code": { value: "78701", sample: "z", ts: 6 } },
+      settings: { autofillOnLoad: false, learnFields: true }
+    });
+
+    await fill(page, 2000);
+
+    const state = await page.evaluate(() => {
+      const committed = (window as never as { __ashbyCommitted: Record<string, string> })
+        .__ashbyCommitted;
+      const shown: Record<string, string> = {};
+      ["_systemfield_name", "_systemfield_email", "_systemfield_phone", "field_linkedin"].forEach(
+        (id) => {
+          const el = document.getElementById(id) as HTMLInputElement | null;
+          if (el) shown[id] = el.value;
+        }
+      );
+      return { committed, shown };
+    });
+
+    // Every field the engine wrote must also have reached the submit payload.
+    const notCommitted = Object.keys(state.shown).filter(
+      (id) => state.shown[id] && state.committed[id] !== state.shown[id]
+    );
+    eq("every filled field reached the submit payload", notCommitted, []);
+    eq("name committed", state.committed._systemfield_name, "Jeff Roberts");
+    eq("email committed", state.committed._systemfield_email, "jeff@example.com");
+    eq("phone committed", state.committed._systemfield_phone, "5125550143");
+    eq(
+      "linkedin committed",
+      state.committed.field_linkedin,
+      "https://linkedin.com/in/jeffroberts"
+    );
+
+    eq("second fill is still a no-op (idempotent)", await fill(page, 2000), 0);
   } finally {
     await page.close();
   }
@@ -600,6 +664,7 @@ async function main(): Promise<void> {
       greenhouseFill,
       greenhouseLearning,
       ashbyFill,
+      ashbyCommitsSubmitPayload,
       ashbyLocationTypeahead,
       ashbyLearning
     ];

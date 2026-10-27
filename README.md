@@ -145,15 +145,17 @@ a fixture is aborted and fails the run.
 Covered: react-select and multi-select dropdowns, Ashby radio groups and Yes/No
 button groups, the location typeahead, learning (including chip removal and
 clearing), idempotency (a second fill must change nothing), DOM-vs-controlled
-state parity, and that no fill ever navigates or submits.
+state parity, that each filled field reaches the form's submit payload (not just
+the visible value), and that no fill ever navigates or submits.
 
 The fixtures are hand-built reproductions of the DOM contracts observed on real
 postings, not scrapes — each quirk is commented with the bug it guards against
 (opacity-0 radios, aria-hidden required shims, commit-on-mousedown options,
-type-less submit buttons, suggestions that never contain the typed text). They
-are deliberately adversarial where it matters: the Gender options list
-"Female" before "Male" so that a matcher preferring substring over exact match
-fails loudly.
+type-less submit buttons, suggestions that never contain the typed text,
+controlled inputs that only commit a value delivered through a real `input`
+event). They are deliberately adversarial where it matters: the Gender options
+list "Female" before "Male" so that a matcher preferring substring over exact
+match fails loudly.
 
 The trade-off is that fixtures can drift from the real sites. If a form stops
 filling in the wild, fix it against the live page first, then fold the new
@@ -162,6 +164,14 @@ quirk into the fixture so it stays covered.
 ## Notes & limits
 
 - Resume upload and other file inputs are intentionally never touched.
+- Ashby mirrors each field's live value into a separate value that its submit
+  validation reads, so filling has to look like a real edit: the engine focuses
+  the field, sets the value through the native setter and fires a genuine
+  `input` event (what React's `onChange` reads), then blurs — one field at a
+  time, yielding briefly between fields so each commit lands before the next.
+  Just assigning the value leaves the text on screen but submits blank
+  ("this field is required"). An earlier version also blanked the field first,
+  which made React coalesce the two edits into "no change" and never commit.
 - A `<button>` with no explicit `type` defaults to submit. Ashby's Yes/No
   toggles sit outside any `<form>`, but the fill engine still refuses to click
   any option button that could submit a form.
